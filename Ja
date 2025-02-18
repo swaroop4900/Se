@@ -1,0 +1,36 @@
+pipeline {
+    agent any
+
+    triggers {
+        genericTrigger(
+            genericVariables: [
+                [key: 'pr_action', value: '$.action'],
+                [key: 'pr_target_branch', value: '$.pull_request.base.ref']
+            ],
+            causeString: 'Triggered on $pr_action to $pr_target_branch',
+            token: 'your_defined_token',
+            printContributedVariables: true,
+            printPostContent: true,
+            regexpFilterText: '$pr_action $pr_target_branch',
+            regexpFilterExpression: '^opened|synchronize\s+main$'
+        )
+    }
+
+    stages {
+        stage('Process Pull Request') {
+            steps {
+                script {
+                    echo "Action: ${params.pr_action}"
+                    echo "Target Branch: ${params.pr_target_branch}"
+
+                    if (params.pr_action in ['opened', 'synchronize'] && params.pr_target_branch == 'main') {
+                        echo "Processing the pull request..."
+                        // Add your build or validation steps here
+                    } else {
+                        echo "No action required for this pull request event."
+                    }
+                }
+            }
+        }
+    }
+}
