@@ -2,34 +2,40 @@ pipeline {
     agent any
 
     triggers {
-        genericTrigger(
+        GenericTrigger(
             genericVariables: [
-                [key: 'pr_action', value: '$.action'],
-                [key: 'pr_target_branch', value: '$.pull_request.base.ref']
+                [key: 'action', value: '$.action'], // Pull request action (e.g., opened, closed)
+                [key: 'pr_number', value: '$.pull_request.number'], // Pull request number
+                [key: 'pr_branch', value: '$.pull_request.head.ref'], // Source branch of the PR
+                [key: 'repo_name', value: '$.repository.full_name'] // Repository name
             ],
-            causeString: 'Triggered on $pr_action to $pr_target_branch',
-            token: 'your_defined_token',
-            printContributedVariables: true,
-            printPostContent: true,
-            regexpFilterText: '$pr_action $pr_target_branch',
-            regexpFilterExpression: '^opened|synchronize\s+main$'
+            causeString: 'Triggered by PR #$pr_number', // Description of the trigger
+            token: 'your-secret-token', // Optional: Add a token for security
+            printContributedVariables: true, // Print variables in logs for debugging
+            printPostContent: true, // Print the entire webhook payload for debugging
+            regexpFilterText: '$action', // Filter based on the action
+            regexpFilterExpression: '(opened|reopened|synchronize)' // Trigger only for these actions
         )
     }
 
     stages {
-        stage('Process Pull Request') {
+        stage('Build') {
             steps {
-                script {
-                    echo "Action: ${params.pr_action}"
-                    echo "Target Branch: ${params.pr_target_branch}"
+                echo "Pull Request #${pr_number} triggered the build."
+                echo "PR Branch: ${pr_branch}"
+                echo "Repository: ${repo_name}"
+            }
+        }
 
-                    if (params.pr_action in ['opened', 'synchronize'] && params.pr_target_branch == 'main') {
-                        echo "Processing the pull request..."
-                        // Add your build or validation steps here
-                    } else {
-                        echo "No action required for this pull request event."
-                    }
-                }
+        stage('Test') {
+            steps {
+                echo "Running tests for PR #${pr_number}"
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Deploying changes from PR #${pr_number}"
             }
         }
     }
