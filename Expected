@@ -44,12 +44,13 @@ def abortAndDeleteBuild(Boolean permitExecute) {
             error("Job '${jobName}' not found.")
         }
 
+        // Abort the current build
         currentBuild.result = hudson.model.Result.ABORTED
-        currentBuild.keepLog(false)
         echo "Build #${buildNumber} marked as ABORTED."
 
         sleep(time: 5, unit: 'SECONDS')
 
+        // Delete the build
         def build = job.getBuildByNumber(buildNumber)
         if (build) {
             build.delete()
