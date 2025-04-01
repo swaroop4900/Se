@@ -8,11 +8,7 @@ pipeline {
         stage('Check and Abort') {
             steps {
                 script {
-                    if (!params.permitExecute) {
-                        abortAndDeleteBuild()
-                    } else {
-                        echo "Execution permitted. Proceeding with the build."
-                    }
+                    abortAndDeleteBuild(params.permitExecute)
                 }
             }
         }
@@ -22,35 +18,39 @@ pipeline {
             }
             steps {
                 echo "Build is running..."
-                // Add actual build steps here
+                // Add your build steps here
             }
         }
     }
 }
 
-// Function to abort and delete the build
-def abortAndDeleteBuild() {
+// Function to abort and delete the build properly
+def abortAndDeleteBuild(Boolean permitExecute) {
+    if (permitExecute) {
+        echo "Execution permitted. Proceeding with the build."
+        return
+    }
+
     try {
         def buildNumber = env.BUILD_NUMBER.toInteger()
         def jobName = env.JOB_NAME
 
         echo "Checking if build #${buildNumber} of job '${jobName}' should be aborted and deleted."
 
-        def jenkins = Jenkins.instanceOrNull
-        if (jenkins == null) {
-            error("Jenkins instance is not available.")
-        }
-
+        def jenkins = Jenkins.instance
         def job = jenkins.getItemByFullName(jobName)
-        if (job == null) {
+
+        if (!job) {
             error("Job '${jobName}' not found.")
         }
 
-        // Mark the build as aborted
+        // Mark build as aborted
         currentBuild.result = hudson.model.Result.ABORTED
+        currentBuild.keepLog(false)
         echo "Build #${buildNumber} marked as ABORTED."
 
-        sleep(5) // Wait for 5 seconds before deletion
+        // Wait for the build to stop completely before deletion
+        waitForBuildToStop(job, buildNumber)
 
         // Delete the build
         def build = job.getBuildByNumber(buildNumber)
@@ -63,4 +63,22 @@ def abortAndDeleteBuild() {
     } catch (Exception e) {
         echo "Error: ${e.getMessage()}"
     }
+}
+
+// Function to wait until the build stops
+def waitForBuildToStop(def job, int buildNumber) {
+    int maxRetries = 10  // Max number of checks
+    int retryDelay = 5  // Seconds between retries
+
+    for (int i = 0; i < maxRetries; i++) {
+        def build = job.getBuildByNumber(buildNumber)
+        if (!build || !build.isBuilding()) {
+            echo "Build #${buildNumber} has stopped."
+            return
+        }
+        echo "Waiting for build #${buildNumber} to stop... (Retry ${i + 1}/${maxRetries})"
+        sleep(time: retryDelay, unit: 'SECONDS')
+    }
+
+    error("Build #${buildNumber} is still running after waiting. Unable to delete.")
 }
