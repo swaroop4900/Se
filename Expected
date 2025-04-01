@@ -1,30 +1,66 @@
 pipeline {
     agent any
+    parameters {
+        booleanParam(name: 'permitExecute', defaultValue: false, description: 'Allow execution?')
+    }
 
     stages {
-        stage('Abort and Delete Build') {
+        stage('Check and Abort') {
             steps {
                 script {
-                    call(true) // Pass true to execute the function
+                    if (!params.permitExecute) {
+                        abortAndDeleteBuild()
+                    } else {
+                        echo "Execution permitted. Proceeding with the build."
+                    }
                 }
+            }
+        }
+        stage('Continue Build') {
+            when {
+                expression { params.permitExecute == true }
+            }
+            steps {
+                echo "Build is running..."
+                // Add actual build steps here
             }
         }
     }
 }
 
-def call(Boolean permitExecute) {
-    if (permitExecute) {
-        def currentBuildNumber = env.BUILD_NUMBER.toInteger()
-        def jenkinsInst = jenkins.model.Jenkins.instance
-        def currentJob = jenkinsInst.getItemByFullName(env.JOB_NAME)
+// Function to abort and delete the build
+def abortAndDeleteBuild() {
+    try {
+        def buildNumber = env.BUILD_NUMBER.toInteger()
+        def jobName = env.JOB_NAME
 
-        currentBuild.result = 'ABORTED'
-        currentBuild.keepLog = false
+        echo "Checking if build #${buildNumber} of job '${jobName}' should be aborted and deleted."
 
-        sleep(5)  // Sleep for 5 seconds
+        def jenkins = Jenkins.instanceOrNull
+        if (jenkins == null) {
+            error("Jenkins instance is not available.")
+        }
 
-        println("currentBuild.result: ${currentBuild.result}")
+        def job = jenkins.getItemByFullName(jobName)
+        if (job == null) {
+            error("Job '${jobName}' not found.")
+        }
 
-        currentJob.getBuildByNumber(currentBuildNumber)?.delete()
+        // Mark the build as aborted
+        currentBuild.result = hudson.model.Result.ABORTED
+        echo "Build #${buildNumber} marked as ABORTED."
+
+        sleep(5) // Wait for 5 seconds before deletion
+
+        // Delete the build
+        def build = job.getBuildByNumber(buildNumber)
+        if (build) {
+            build.delete()
+            echo "Build #${buildNumber} deleted successfully."
+        } else {
+            echo "Build #${buildNumber} not found for deletion."
+        }
+    } catch (Exception e) {
+        echo "Error: ${e.getMessage()}"
     }
 }
