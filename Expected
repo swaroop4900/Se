@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    parameters {
+        booleanParam(name: 'permitExecute', defaultValue: false, description: 'Allow execution?')
+    }
+
+    stages {
+        stage('Check and Abort') {
+            steps {
+                script {
+                    abortAndDeleteBuild(params.permitExecute)
+                }
+            }
+        }
+        stage('Continue Build') {
+            when {
+                expression { params.permitExecute == true }
+            }
+            steps {
+                echo "Build is running..."
+                // Add your build steps here
+            }
+        }
+    }
+}
+
+// Function to abort and delete the build if execution is not permitted
+def abortAndDeleteBuild(Boolean permitExecute) {
+    if (permitExecute) {
+        echo "Execution permitted. Proceeding with the build."
+        return
+    }
+
+    try {
+        def buildNumber = env.BUILD_NUMBER.toInteger()
+        def jobName = env.JOB_NAME
+
+        echo "Checking if build #${buildNumber} of job '${jobName}' should be aborted and deleted."
+
+        def jenkins = Jenkins.instance
+        def job = jenkins.getItemByFullName(jobName)
+
+        if (!job) {
+            error("Job '${jobName}' not found.")
+        }
+
+        currentBuild.result = hudson.model.Result.ABORTED
+        currentBuild.keepLog(false)
+        echo "Build #${buildNumber} marked as ABORTED."
+
+        sleep(time: 5, unit: 'SECONDS')
+
+        def build = job.getBuildByNumber(buildNumber)
+        if (build) {
+            build.delete()
+            echo "Build #${buildNumber} deleted successfully."
+        } else {
+            echo "Build #${buildNumber} not found for deletion."
+        }
+    } catch (Exception e) {
+        echo "Error: ${e.getMessage()}"
+    }
+}
