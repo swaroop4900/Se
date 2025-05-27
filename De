@@ -1,0 +1,24 @@
+from flask import Flask
+import psycopg2
+
+app = Flask(__name__)
+
+@app.route('/')
+def hello():
+    try:
+        conn = psycopg2.connect(
+            host="1.0.1",
+            port=5432,
+            user="YOUR_DB_USER",
+            password="YOUR_DB_PASSWORD",
+            dbname="YOUR_DB_NAME"
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT 'Hello from Cloud SQL for PostgreSQL!'")
+        result = cur.fetchone()
+        return f"<h1>{result[0]}</h1>"
+    except Exception as e:
+        return f"<h1>Failed: {e}</h1>"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
